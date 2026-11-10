@@ -111,6 +111,11 @@ class RemoteFailure implements Exception {
   String toString() => message;
 }
 
+class DisconnectedFailure extends RemoteFailure {
+  const DisconnectedFailure()
+    : super('TV disconnected. Reconnect to continue.');
+}
+
 abstract class TvRemote {
   Set<RemoteKey> get keys;
   bool get supportsText;

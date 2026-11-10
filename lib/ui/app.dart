@@ -255,7 +255,8 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
       if (demo) notice(demoMessage ?? 'Demo only — no command was sent.');
     } catch (error) {
       notice(readable(error));
-      if (error is SocketException ||
+      if (error is DisconnectedFailure ||
+          error is SocketException ||
           error is StateError ||
           error is WebSocketException) {
         await disconnect();
@@ -510,6 +511,26 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
                       TextButton(
                         onPressed: startDemo,
                         child: const Text('Try the demo'),
+                      ),
+                    if (selected != null)
+                      TextButton(
+                        onPressed: () async {
+                          final device = selected!;
+                          try {
+                            await store.forget(device);
+                            if (mounted) {
+                              setState(() {
+                                selected = null;
+                                status =
+                                    'Pairing forgotten. Add your TV again.';
+                              });
+                            }
+                            await load();
+                          } catch (_) {
+                            notice('Could not forget the pairing. Try again.');
+                          }
+                        },
+                        child: const Text('Forget pairing'),
                       ),
                   ],
                 ),

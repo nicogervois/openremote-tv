@@ -86,6 +86,13 @@ void main() {
           ).readAsBytes().then((bytes) => ByteData.sublistView(bytes)),
         );
       await font.load();
+      final icons = FontLoader('MaterialIcons')
+        ..addFont(
+          File(
+            '$sdk/bin/cache/artifacts/material_fonts/materialicons-regular.otf',
+          ).readAsBytes().then((bytes) => ByteData.sublistView(bytes)),
+        );
+      await icons.load();
     });
     tester.view.physicalSize = const Size(390, 960);
     tester.view.devicePixelRatio = 1;

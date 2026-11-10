@@ -67,9 +67,21 @@ class PinnedSocket {
         sha256.convert(cert.der).toString() == expected;
     // Verify the pin even for certificates accepted by the system trust store.
     client.connectionFactory = (url, proxyHost, proxyPort) async {
+      if (url.host != device.host ||
+          url.port != uri.port ||
+          proxyHost != null) {
+        throw const RemoteFailure('The TV tried to redirect this connection.');
+      }
       final task = await Socket.startConnect(url.host, url.port);
+      Socket? active;
+      var cancelled = false;
       return ConnectionTask.fromSocket(
         task.socket.then((socket) async {
+          active = socket;
+          if (cancelled) {
+            socket.destroy();
+            throw const DisconnectedFailure();
+          }
           final secure = await SecureSocket.secure(
             socket,
             host: url.host,
@@ -86,7 +98,11 @@ class PinnedSocket {
           }
           return secure;
         }),
-        task.cancel,
+        () {
+          cancelled = true;
+          task.cancel();
+          active?.destroy();
+        },
       );
     };
     try {
@@ -95,7 +111,7 @@ class PinnedSocket {
         customClient: client,
       ).timeout(const Duration(seconds: 8));
     } finally {
-      client.close();
+      client.close(force: true);
     }
   }
 }
@@ -132,7 +148,7 @@ class JsonChannel {
   bool get connected => socket.readyState == WebSocket.open;
   void send(Map<String, Object?> message) {
     if (!connected) {
-      throw const RemoteFailure('TV disconnected. Reconnect to continue.');
+      throw const DisconnectedFailure();
     }
     socket.add(jsonEncode(message));
   }
@@ -140,14 +156,40 @@ class JsonChannel {
   Future<Map<String, dynamic>> waitFor(
     bool Function(Map<String, dynamic>) predicate, {
     Duration timeout = const Duration(seconds: 8),
-  }) => events.stream
-      .firstWhere(predicate)
-      .timeout(
-        timeout,
-        onTimeout: () => throw const RemoteFailure(
+  }) {
+    if (!connected) throw const DisconnectedFailure();
+    final result = Completer<Map<String, dynamic>>();
+    late final StreamSubscription<Map<String, dynamic>> listener;
+    late final Timer timer;
+    void fail(Object error) {
+      if (result.isCompleted) return;
+      timer.cancel();
+      unawaited(listener.cancel());
+      result.completeError(error);
+    }
+
+    listener = events.stream.listen(
+      (message) {
+        if (!result.isCompleted && predicate(message)) {
+          timer.cancel();
+          unawaited(listener.cancel());
+          result.complete(message);
+        }
+      },
+      onError: (Object error) => fail(error),
+      onDone: () => fail(const DisconnectedFailure()),
+    );
+    timer = Timer(
+      timeout,
+      () => fail(
+        const RemoteFailure(
           'The TV did not respond. Check its connection and try again.',
         ),
-      );
+      ),
+    );
+    return result.future;
+  }
+
   Future<void> close() async {
     await subscription.cancel();
     await socket.close();
