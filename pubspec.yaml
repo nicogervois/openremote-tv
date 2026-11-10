@@ -1,0 +1,22 @@
+name: openremote_tv
+description: A completely free local-network TV remote. No ads, accounts, or subscriptions.
+publish_to: none
+version: 0.1.0+1
+environment:
+  sdk: '>=3.11.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_secure_storage: ^10.0.0
+  crypto: ^3.0.7
+  xml: ^6.6.1
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/lg_registration.json
+    - THIRD_PARTY_NOTICES.md
+    - licenses/aiowebostv.txt
