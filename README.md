@@ -34,6 +34,8 @@ Use Android Studio / Android SDK with Java 17. Run `flutter build apk --debug`, 
 
 ### iOS
 
+**First test: [Mac → iPhone → Samsung quickstart](docs/iphone-quickstart.md).** Use manual IP entry initially.
+
 Use a Mac with Xcode and the Flutter-recommended native dependencies. Open `ios/Runner.xcworkspace`, select your signing team and a unique bundle identifier, and run on an iPhone. The CI simulator build does **not** install on an iPhone.
 
 The app includes the Local Network permission description. **Automatic SSDP discovery and broadcast Wake-on-LAN on iOS require Apple's multicast entitlement**, approved for the signing team and enabled in the provisioning profile. After approval, copy `ios/Runner/Discovery.entitlements.example` to `Runner.entitlements` and set `CODE_SIGN_ENTITLEMENTS` for Runner. Until then, use manual IP entry. This is deliberately not enabled in the unsigned template, so basic device builds do not falsely imply entitlement approval.
