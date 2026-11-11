@@ -103,8 +103,8 @@ void main() {
         await tester.pumpAndSettle();
       }
       expect(actions, ['up', 'down', 'mute']);
-      expect(find.byIcon(Icons.add), findsNothing);
-      expect(find.byIcon(Icons.remove), findsNothing);
+      expect(find.byIcon(Icons.add), findsOneWidget);
+      expect(find.byIcon(Icons.remove), findsOneWidget);
     },
   );
 

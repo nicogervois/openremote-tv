@@ -203,7 +203,15 @@ class RemoteRocker extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            zone('$label up', onUp, const SizedBox.shrink()),
+            zone(
+              '$label up',
+              onUp,
+              Icon(
+                Icons.add,
+                size: 20,
+                color: onUp != null ? const Color(0xffb7c2ba) : Colors.white24,
+              ),
+            ),
             zone(
               centerLabel,
               onCenter,
@@ -228,7 +236,17 @@ class RemoteRocker extends StatelessWidget {
                       ],
                     ),
             ),
-            zone('$label down', onDown, const SizedBox.shrink()),
+            zone(
+              '$label down',
+              onDown,
+              Icon(
+                Icons.remove,
+                size: 20,
+                color: onDown != null
+                    ? const Color(0xffb7c2ba)
+                    : Colors.white24,
+              ),
+            ),
           ],
         ),
       ),
