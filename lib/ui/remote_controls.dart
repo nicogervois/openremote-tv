@@ -160,7 +160,7 @@ class _RingSector extends CustomClipper<Path> {
 }
 
 /// No invented slider value: each end sends a real incremental TV command.
-/// The middle grip is mute for volume, or the number pad for channels.
+/// The middle control is mute for volume, or the number pad for channels.
 class RemoteRocker extends StatelessWidget {
   const RemoteRocker({
     super.key,
@@ -169,12 +169,14 @@ class RemoteRocker extends StatelessWidget {
     required this.onDown,
     required this.onCenter,
     required this.centerLabel,
+    this.centerIcon,
   });
   final String label;
   final VoidCallback? onUp;
   final VoidCallback? onDown;
   final VoidCallback? onCenter;
   final String centerLabel;
+  final IconData? centerIcon;
 
   Widget zone(String label, VoidCallback? action, Widget child) => Tooltip(
     message: label,
@@ -205,18 +207,26 @@ class RemoteRocker extends StatelessWidget {
             zone(
               centerLabel,
               onCenter,
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (var n = 0; n < 3; n++)
-                    Container(
-                      margin: const EdgeInsets.symmetric(vertical: 2),
-                      height: 1,
-                      width: 19,
-                      color: Colors.white.withValues(alpha: .30),
+              centerIcon != null
+                  ? Icon(
+                      centerIcon,
+                      size: 24,
+                      color: onCenter != null
+                          ? remoteHighlight
+                          : Colors.white24,
+                    )
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (var n = 0; n < 3; n++)
+                          Container(
+                            margin: const EdgeInsets.symmetric(vertical: 2),
+                            height: 1,
+                            width: 19,
+                            color: Colors.white.withValues(alpha: .30),
+                          ),
+                      ],
                     ),
-                ],
-              ),
             ),
             zone('$label down', onDown, const SizedBox.shrink()),
           ],

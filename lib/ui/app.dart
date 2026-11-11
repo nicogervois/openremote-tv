@@ -769,6 +769,7 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
                           ? () => press(RemoteKey.mute)
                           : null,
                       centerLabel: 'Mute',
+                      centerIcon: Icons.volume_off_rounded,
                     ),
                     RemoteRocker(
                       label: 'Channel',
