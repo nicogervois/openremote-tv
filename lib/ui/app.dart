@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../core/models.dart';
 import '../core/storage.dart';
 import '../network/discovery.dart';
@@ -10,6 +11,7 @@ import '../remotes/lg.dart';
 import '../remotes/samsung.dart';
 import '../remotes/sony.dart';
 import 'dialogs.dart';
+import 'remote_controls.dart';
 
 const ink = Color(0xff20372f);
 const mint = Color(0xffd3efdc);
@@ -73,11 +75,9 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
   bool connecting = false;
   bool scanning = false;
   bool sending = false;
-  bool touchpad = false;
   int tab = 0;
   int epoch = 0;
   String status = 'Your couch. Your controls.';
-  Offset drag = Offset.zero;
   bool get demo => remote is DemoRemote;
   bool get ready => remote != null && !connecting;
   @override
@@ -351,70 +351,229 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
     });
   }
 
-  Widget keyButton(
-    RemoteKey key,
-    IconData icon,
-    String label, {
-    bool accent = false,
-  }) => IconButton.filledTonal(
-    onPressed: ready && !sending && remote!.keys.contains(key)
-        ? () => send(key)
-        : null,
-    tooltip: label,
-    icon: Icon(icon, size: 25),
-    style: IconButton.styleFrom(
-      minimumSize: const Size(48, 54),
-      backgroundColor: accent ? ink : Colors.white,
-      foregroundColor: accent ? Colors.white : ink,
-      disabledBackgroundColor: accent
-          ? ink.withValues(alpha: .15)
-          : Colors.white.withValues(alpha: .5),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+  bool supports(RemoteKey key) =>
+      ready && !sending && remote!.keys.contains(key);
+
+  void press(RemoteKey key) {
+    if (!supports(key)) return;
+    unawaited(HapticFeedback.selectionClick());
+    unawaited(send(key));
+  }
+
+  Future<void> forgetSelected() async {
+    final device = selected;
+    if (device == null) return;
+    try {
+      await store.forget(device);
+      if (mounted) {
+        setState(() {
+          selected = null;
+          status = 'Pairing forgotten. Add your TV again.';
+        });
+      }
+      await load();
+    } catch (_) {
+      notice('Could not forget the pairing. Try again.');
+    }
+  }
+
+  Future<void> moreControls() async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (context) {
+        Widget item(String id, IconData icon, String title, bool enabled) =>
+            ListTile(
+              enabled: enabled,
+              leading: Icon(icon),
+              title: Text(title),
+              onTap: enabled ? () => Navigator.pop(context, id) : null,
+            );
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * .8,
+          ),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Text(
+                  'More controls',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+                ),
+              ),
+              item(
+                'keyboard',
+                Icons.keyboard_outlined,
+                'Keyboard',
+                ready && !sending && remote!.supportsText,
+              ),
+              item(
+                'apps',
+                Icons.apps,
+                'TV apps',
+                ready && !sending && remote!.supportsApps,
+              ),
+              item('input', Icons.input, 'Input', supports(RemoteKey.input)),
+              item('numbers', Icons.dialpad, 'Number pad', ready && !sending),
+              item('menu', Icons.menu, 'TV menu', supports(RemoteKey.menu)),
+              const Divider(),
+              const ExpansionTile(
+                title: Text('Using this remote'),
+                childrenPadding: EdgeInsets.all(16),
+                children: [
+                  Text(
+                    'Tap the top, bottom or sides of the ring to move. Tap its center to select.\n\nTap the top of a rocker to raise volume or channel, and the bottom to lower it. The middle grip mutes volume or opens channel numbers.\n\nThe playback button opens Play and Pause controls; the app does not guess what the TV is playing.',
+                  ),
+                ],
+              ),
+              item('about', Icons.info_outline, 'About OpenRemote', true),
+              if (ready)
+                item(
+                  'disconnect',
+                  Icons.link_off,
+                  demo ? 'Leave demo' : 'Disconnect',
+                  true,
+                ),
+            ],
+          ),
+        );
+      },
+    );
+    if (!mounted) return;
+    switch (choice) {
+      case 'keyboard':
+        await keyboard();
+      case 'apps':
+        await showApps();
+      case 'input':
+        await send(RemoteKey.input);
+      case 'numbers':
+        await numbers();
+      case 'menu':
+        await send(RemoteKey.menu);
+      case 'about':
+        setState(() => tab = 2);
+      case 'disconnect':
+        await disconnect();
+    }
+  }
+
+  Future<void> playback() async {
+    final key = await showModalBottomSheet<RemoteKey>(
+      context: context,
+      useSafeArea: true,
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Playback',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 20),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              alignment: WrapAlignment.center,
+              children: [
+                for (final (key, icon, label) in [
+                  (RemoteKey.play, Icons.play_arrow_rounded, 'Play'),
+                  (RemoteKey.pause, Icons.pause_rounded, 'Pause'),
+                  (RemoteKey.rewind, Icons.fast_rewind_rounded, 'Rewind'),
+                  (
+                    RemoteKey.fastForward,
+                    Icons.fast_forward_rounded,
+                    'Fast forward',
+                  ),
+                ])
+                  FilledButton.tonalIcon(
+                    onPressed: supports(key)
+                        ? () => Navigator.pop(context, key)
+                        : null,
+                    icon: Icon(icon),
+                    label: Text(label),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+    if (key != null) await send(key);
+  }
+
+  Widget roundButton(
+    String label,
+    Widget child,
+    VoidCallback? action, {
+    bool primary = false,
+  }) => Tooltip(
+    message: label,
+    child: SizedBox.square(
+      dimension: 52,
+      child: FilledButton(
+        onPressed: action,
+        style: FilledButton.styleFrom(
+          padding: EdgeInsets.zero,
+          shape: const CircleBorder(),
+          backgroundColor: primary ? remoteHighlight : const Color(0xff39413c),
+          foregroundColor: primary ? ink : const Color(0xffe5eae6),
+          disabledBackgroundColor: const Color(0xff303632),
+          disabledForegroundColor: Colors.white24,
+        ),
+        child: Semantics(label: label, excludeSemantics: true, child: child),
+      ),
     ),
   );
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.settings_remote_outlined, size: 23),
-          SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              'openremote',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -.7,
-              ),
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        if (MediaQuery.sizeOf(context).width >= 380 &&
-            MediaQuery.textScalerOf(context).scale(1) <= 1.2)
-          Padding(
-            padding: const EdgeInsets.only(right: 20),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: mint,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Text(
-                'FREE. ALWAYS.',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1,
+      toolbarHeight: 68,
+      leading: tab == 0
+          ? null
+          : BackButton(onPressed: () => setState(() => tab = 0)),
+      title: tab == 0
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  demo ? 'Living room' : selected?.name ?? 'Your remote',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
+                const SizedBox(height: 3),
+                Text(
+                  ready ? status : 'Choose your TV to get started',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xff667469),
+                  ),
+                ),
+              ],
+            )
+          : const Text(
+              'openremote',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
             ),
-          ),
+      actions: [
+        IconButton(
+          tooltip: 'My TVs',
+          onPressed: () => setState(() => tab = 1),
+          icon: const Icon(Icons.tv_outlined),
+        ),
+        const SizedBox(width: 12),
       ],
     ),
     body: SafeArea(
@@ -429,334 +588,215 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
         ),
       ),
     ),
-    bottomNavigationBar: NavigationBar(
-      selectedIndex: tab,
-      onDestinationSelected: (value) => setState(() => tab = value),
-      backgroundColor: paper,
-      indicatorColor: mint,
-      destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.gamepad_outlined),
-          selectedIcon: Icon(Icons.gamepad),
-          label: 'Remote',
-        ),
-        NavigationDestination(icon: Icon(Icons.tv_outlined), label: 'My TVs'),
-        NavigationDestination(
-          icon: Icon(Icons.favorite_border),
-          label: 'About',
-        ),
-      ],
-    ),
+    bottomNavigationBar: tab == 0
+        ? null
+        : NavigationBar(
+            selectedIndex: tab,
+            onDestinationSelected: (value) => setState(() => tab = value),
+            backgroundColor: paper,
+            indicatorColor: mint,
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.gamepad_outlined),
+                label: 'Remote',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.tv_outlined),
+                label: 'My TVs',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.favorite_border),
+                label: 'About',
+              ),
+            ],
+          ),
   );
+
   Widget remotePage(BuildContext context) => ListView(
-    padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+    padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
     children: [
-      Text(
-        'Make yourself\nat home.',
-        style: Theme.of(context).textTheme.headlineLarge,
-      ),
-      const SizedBox(height: 18),
-      Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: mint,
-          borderRadius: BorderRadius.circular(24),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.tv_rounded),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    demo
-                        ? 'Living room · demo'
-                        : selected?.name ?? 'Your TV, one tap away',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 17,
+      if (!ready) ...[
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: mint,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(status, style: const TextStyle(fontSize: 13, height: 1.4)),
+              const SizedBox(height: 10),
+              if (connecting)
+                Row(
+                  children: [
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     ),
-                  ),
-                ),
-                if (connecting)
-                  const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else
-                  Icon(ready ? Icons.check_circle : Icons.wifi_find, size: 20),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(status, style: const TextStyle(fontSize: 13, height: 1.4)),
-            if (!ready && !connecting)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Wrap(
+                    TextButton(
+                      onPressed: disconnect,
+                      child: const Text('Cancel'),
+                    ),
+                  ],
+                )
+              else
+                Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: [
                     FilledButton(
-                      onPressed: selected != null
-                          ? () => connect(selected!)
-                          : () => setState(() => tab = 1),
+                      onPressed: selected == null
+                          ? () => setState(() => tab = 1)
+                          : () => connect(selected!),
                       child: Text(
-                        selected != null ? 'Reconnect' : 'Connect a TV',
+                        selected == null ? 'Connect a TV' : 'Reconnect',
                       ),
                     ),
-                    if (selected == null)
-                      TextButton(
-                        onPressed: startDemo,
-                        child: const Text('Try the demo'),
+                    TextButton(
+                      onPressed: selected == null ? startDemo : forgetSelected,
+                      child: Text(
+                        selected == null ? 'Try the demo' : 'Forget pairing',
                       ),
-                    if (selected != null)
-                      TextButton(
-                        onPressed: () async {
-                          final device = selected!;
-                          try {
-                            await store.forget(device);
-                            if (mounted) {
-                              setState(() {
-                                selected = null;
-                                status =
-                                    'Pairing forgotten. Add your TV again.';
-                              });
-                            }
-                            await load();
-                          } catch (_) {
-                            notice('Could not forget the pairing. Try again.');
-                          }
-                        },
-                        child: const Text('Forget pairing'),
-                      ),
+                    ),
                   ],
                 ),
-              ),
-            if (connecting)
-              TextButton(onPressed: disconnect, child: const Text('Cancel')),
-          ],
-        ),
-      ),
-      const SizedBox(height: 18),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          keyButton(
-            RemoteKey.power,
-            Icons.power_settings_new,
-            'Power off',
-            accent: true,
-          ),
-          SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(
-                value: false,
-                icon: Icon(Icons.gamepad_outlined),
-                tooltip: 'Buttons',
-              ),
-              ButtonSegment(
-                value: true,
-                icon: Icon(Icons.swipe_outlined),
-                tooltip: 'Swipe',
-              ),
             ],
-            selected: {touchpad},
-            onSelectionChanged: (value) =>
-                setState(() => touchpad = value.first),
-            showSelectedIcon: false,
           ),
-        ],
-      ),
-      const SizedBox(height: 16),
-      if (touchpad)
-        Semantics(
-          label: 'Swipe pad. Swipe in a direction or tap to select.',
-          child: GestureDetector(
-            onPanStart: (_) => drag = Offset.zero,
-            onPanUpdate: (details) => drag += details.delta,
-            onPanEnd: (_) {
-              if (drag.distance >= 24) {
-                send(
-                  drag.dx.abs() > drag.dy.abs()
-                      ? (drag.dx > 0 ? RemoteKey.right : RemoteKey.left)
-                      : (drag.dy > 0 ? RemoteKey.down : RemoteKey.up),
-                );
-              }
-            },
-            onTap: () => send(RemoteKey.select),
-            child: Container(
-              height: 220,
-              decoration: BoxDecoration(
-                color: ink,
-                borderRadius: BorderRadius.circular(36),
-              ),
-              child: const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.swipe_rounded, color: mint, size: 36),
-                  SizedBox(height: 16),
-                  Text(
-                    'A little swipe. A big screen.',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  SizedBox(height: 6),
-                  Text(
-                    'Swipe to move · tap to select',
-                    style: TextStyle(color: mint, fontSize: 12),
-                  ),
-                ],
-              ),
+        ),
+        const SizedBox(height: 16),
+      ],
+      Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 300),
+          child: Container(
+            key: const ValueKey('remote-body'),
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+            decoration: BoxDecoration(
+              color: remoteSurface,
+              borderRadius: BorderRadius.circular(40),
+              border: Border.all(color: const Color(0xff3b433d)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x17000000),
+                  blurRadius: 26,
+                  offset: Offset(0, 12),
+                ),
+              ],
             ),
-          ),
-        )
-      else
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: const Color(0xffeaece3),
-            borderRadius: BorderRadius.circular(36),
-          ),
-          child: Column(
-            children: [
-              keyButton(RemoteKey.up, Icons.keyboard_arrow_up, 'Up'),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  keyButton(RemoteKey.left, Icons.keyboard_arrow_left, 'Left'),
-                  SizedBox(
-                    width: 86,
-                    height: 70,
-                    child: FilledButton(
-                      onPressed: ready && !sending
-                          ? () => send(RemoteKey.select)
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    roundButton(
+                      'Power off',
+                      const Icon(Icons.power_settings_new, size: 24),
+                      supports(RemoteKey.power)
+                          ? () => press(RemoteKey.power)
                           : null,
-                      style: FilledButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(25),
-                        ),
-                      ),
-                      child: const Text(
-                        'OK',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
                     ),
+                    roundButton(
+                      'More controls',
+                      const Icon(Icons.more_horiz, size: 24),
+                      moreControls,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 208),
+                  child: NavigationRing(
+                    onKey: ready && !sending ? press : null,
+                    enabledKeys: remote?.keys ?? const {},
                   ),
-                  keyButton(
-                    RemoteKey.right,
-                    Icons.keyboard_arrow_right,
-                    'Right',
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    roundButton(
+                      'Back',
+                      const Text('Back', style: TextStyle(fontSize: 12)),
+                      supports(RemoteKey.back)
+                          ? () => press(RemoteKey.back)
+                          : null,
+                    ),
+                    roundButton(
+                      'Home',
+                      const Icon(Icons.home_outlined, size: 25),
+                      supports(RemoteKey.home)
+                          ? () => press(RemoteKey.home)
+                          : null,
+                      primary: true,
+                    ),
+                    roundButton(
+                      'Playback controls',
+                      const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.play_arrow_rounded, size: 18),
+                          Icon(Icons.pause_rounded, size: 18),
+                        ],
+                      ),
+                      ready &&
+                              !sending &&
+                              [
+                                RemoteKey.play,
+                                RemoteKey.pause,
+                                RemoteKey.rewind,
+                                RemoteKey.fastForward,
+                              ].any((key) => remote!.keys.contains(key))
+                          ? playback
+                          : null,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    RemoteRocker(
+                      label: 'Volume',
+                      onUp: supports(RemoteKey.volumeUp)
+                          ? () => press(RemoteKey.volumeUp)
+                          : null,
+                      onDown: supports(RemoteKey.volumeDown)
+                          ? () => press(RemoteKey.volumeDown)
+                          : null,
+                      onCenter: supports(RemoteKey.mute)
+                          ? () => press(RemoteKey.mute)
+                          : null,
+                      centerLabel: 'Mute',
+                    ),
+                    RemoteRocker(
+                      label: 'Channel',
+                      onUp: supports(RemoteKey.channelUp)
+                          ? () => press(RemoteKey.channelUp)
+                          : null,
+                      onDown: supports(RemoteKey.channelDown)
+                          ? () => press(RemoteKey.channelDown)
+                          : null,
+                      onCenter: ready && !sending ? numbers : null,
+                      centerLabel: 'Number pad',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                const Text(
+                  'Tap ring edges.\nRockers: top or bottom.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xffa6b0a9),
+                    fontSize: 11,
+                    height: 1.5,
                   ),
-                ],
-              ),
-              keyButton(RemoteKey.down, Icons.keyboard_arrow_down, 'Down'),
-            ],
-          ),
-        ),
-      const SizedBox(height: 14),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          keyButton(RemoteKey.back, Icons.arrow_back_rounded, 'Back'),
-          keyButton(RemoteKey.home, Icons.home_outlined, 'Home'),
-          keyButton(RemoteKey.input, Icons.input, 'Input'),
-          keyButton(RemoteKey.menu, Icons.more_horiz, 'Menu'),
-        ],
-      ),
-      const SizedBox(height: 18),
-      Row(
-        children: [
-          Expanded(
-            child: rocker('VOLUME', RemoteKey.volumeDown, RemoteKey.volumeUp),
-          ),
-          const SizedBox(width: 8),
-          keyButton(RemoteKey.mute, Icons.volume_off_outlined, 'Mute'),
-          const SizedBox(width: 8),
-          Expanded(
-            child: rocker(
-              'CHANNEL',
-              RemoteKey.channelDown,
-              RemoteKey.channelUp,
+                ),
+              ],
             ),
           ),
-        ],
-      ),
-      const SizedBox(height: 18),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          keyButton(RemoteKey.rewind, Icons.fast_rewind_rounded, 'Rewind'),
-          keyButton(RemoteKey.play, Icons.play_arrow_rounded, 'Play'),
-          keyButton(RemoteKey.pause, Icons.pause_rounded, 'Pause'),
-          keyButton(
-            RemoteKey.fastForward,
-            Icons.fast_forward_rounded,
-            'Fast forward',
-          ),
-        ],
-      ),
-      const SizedBox(height: 20),
-      Wrap(
-        alignment: WrapAlignment.center,
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          OutlinedButton.icon(
-            onPressed: ready && !sending && remote!.supportsText
-                ? keyboard
-                : null,
-            icon: const Icon(Icons.keyboard_outlined),
-            label: const Text('Keyboard'),
-          ),
-          OutlinedButton.icon(
-            onPressed: ready && !sending && remote!.supportsApps
-                ? showApps
-                : null,
-            icon: const Icon(Icons.apps),
-            label: const Text('Apps'),
-          ),
-          OutlinedButton.icon(
-            onPressed: ready ? numbers : null,
-            icon: const Icon(Icons.dialpad),
-            label: const Text('Numbers'),
-          ),
-        ],
-      ),
-      const SizedBox(height: 16),
-      const Text(
-        'No ads. No subscriptions. Just the remote.',
-        textAlign: TextAlign.center,
-        style: TextStyle(fontSize: 12, color: Color(0xff667469)),
-      ),
-      if (ready)
-        TextButton(
-          onPressed: disconnect,
-          child: Text(demo ? 'Leave demo' : 'Disconnect'),
         ),
-    ],
-  );
-  Widget rocker(String title, RemoteKey minus, RemoteKey plus) => Column(
-    children: [
-      Text(
-        title,
-        style: const TextStyle(
-          fontSize: 10,
-          letterSpacing: 1.2,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-      const SizedBox(height: 6),
-      Row(
-        children: [
-          Expanded(child: keyButton(minus, Icons.remove, '$title down')),
-          const SizedBox(width: 4),
-          Expanded(child: keyButton(plus, Icons.add, '$title up')),
-        ],
       ),
     ],
   );
@@ -988,7 +1028,7 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
         childrenPadding: EdgeInsets.all(16),
         children: [
           Text(
-            'Directional remote, swipe navigation, volume, channels, playback, input, numbers, and saved TVs. Keyboard and app lists depend on TV model and active app. Wake-on-LAN requires a saved MAC address and network standby.\n\nGoogle/Android TV, Fire TV, Apple TV, casting, screen mirroring, voice and infrared are not implemented. Roku is out of scope. No model is hardware-certified yet.',
+            'Unmarked navigation ring, volume and channel rockers, playback, input, numbers, and saved TVs. Keyboard and app lists depend on TV model and active app. Wake-on-LAN requires a saved MAC address and network standby.\n\nGoogle/Android TV, Fire TV, Apple TV, casting, screen mirroring, voice and infrared are not implemented. Roku is out of scope. No model is hardware-certified yet.',
           ),
         ],
       ),

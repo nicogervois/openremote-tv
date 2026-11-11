@@ -1,5 +1,15 @@
 # Developer preview validation
 
+## Simplified remote revision — 2026-11-10
+
+The photo-inspired remote replaces arrow buttons with four annular touch regions and a center select button. Volume/channel rockers have three 48-point touch regions each. Their middle grips mute or open numbers. Secondary controls are under More; playback opens explicit actions instead of assuming playback state.
+
+Local Flutter analysis passes with no issues, and all 20 tests pass. New checks cover ring edges/diagonals/center, inert disabled controls and accessible names, rocker mappings, playback actions, and the complete connected remote fitting a 390×844 iPhone viewport with 47-point top and 34-point bottom safe areas. A separate real Flutter render was visually reviewed. Smaller screens and larger text retain scrolling. Network adapters are unchanged; physical TV validation remains pending.
+
+The native build results below belong to the original preview commit. The new UI commit triggers its own CI build.
+
+## Original preview
+
 Validated 2026-11-10 against application commit `c8953a4`.
 
 | Check | Result |

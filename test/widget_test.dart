@@ -16,14 +16,14 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(const OpenRemoteApp(loadSaved: false));
     expect(find.text('Connect a TV'), findsOneWidget);
-    final ok = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'OK'),
+    final ok = tester.widget<InkWell>(
+      find.byKey(const ValueKey('ring-select')),
     );
-    expect(ok.onPressed, isNull);
+    expect(ok.onTap, isNull);
     await tester.tap(find.text('Try the demo'));
     await tester.pumpAndSettle();
     expect(find.text('Demo mode · no TV is connected'), findsOneWidget);
-    await tester.tap(find.text('OK'));
+    await tester.tap(find.byKey(const ValueKey('ring-select')));
     await tester.pumpAndSettle();
     expect(find.text('Demo · select'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -32,7 +32,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(const OpenRemoteApp(loadSaved: false));
-    await tester.tap(find.text('My TVs'));
+    await tester.tap(find.byTooltip('My TVs'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Add TV by IP address'));
     await tester.pumpAndSettle();
@@ -94,7 +94,7 @@ void main() {
         );
       await icons.load();
     });
-    tester.view.physicalSize = const Size(390, 960);
+    tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -111,7 +111,7 @@ void main() {
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
       await Directory('captures').create(recursive: true);
       await File(
-        'captures/remote.png',
+        'captures/remote-simple.png',
       ).writeAsBytes(bytes!.buffer.asUint8List());
       image.dispose();
     });

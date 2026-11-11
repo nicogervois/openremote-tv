@@ -10,10 +10,10 @@ A free TV remote for **iOS and Android**. No ads, subscriptions, accounts, analy
 - LG webOS secure SSAP pairing and pointer-button controls.
 - Sony BRAVIA IP control using a user-configured pre-shared key; buttons are queried from the TV.
 - SSDP discovery, manual IP entry, multiple saved TVs and forgetting pairings.
-- D-pad and swipe navigation, Home/Back/Input/Menu, volume/mute, channels, number pad and playback.
+- An unmarked navigation ring, Home/Back, and volume/channel rockers. Less-used Input/Menu, keyboard, TV apps and numbers live under More.
 - Keyboard input and app picker on models that expose them.
 - Optional Wake-on-LAN using a manually entered MAC address.
-- Explicit offline demo, accessible button labels, scrollable phone/tablet layout, setup help and privacy information.
+- Explicit offline demo, accessible control labels, a compact remote that fits an iPhone screen, scrollable layouts for smaller screens and larger text, setup help and privacy information.
 
 See [the compatibility matrix](docs/compatibility.md) before assuming a feature works on a particular TV. A brand logo alone does not determine its protocol.
 

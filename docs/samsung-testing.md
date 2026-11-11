@@ -10,8 +10,8 @@ Record TV model/year, firmware, phone model, OS, app commit and router condition
 4. Test Up/Down/Left/Right/OK, Back, Home, Menu and Input. Verify a single tap produces a single action.
 5. Test volume, mute and channels in live TV. Repeat with any soundbar/receiver and note limitations.
 6. Test Play/Pause/Rewind/Fast-forward within a media app. Some apps ignore these commands.
-7. Open a search field on the TV, send simple text, then accented characters. Do not use a password field for this test.
-8. Open Apps and launch one returned app. If firmware withholds the list, verify the app displays an explanation and Home navigation still works.
+7. Open a search field on the TV, use More → Keyboard to send simple text, then accented characters. Do not use a password field for this test.
+8. Open More → TV apps and launch one returned app. If firmware withholds the list, verify the app displays an explanation and Home navigation still works.
 9. Background/foreground the phone app. Reconnect and confirm that the saved token works. Power off/on the TV and repeat. Restart the app and check the saved TV.
 10. Deny a first-time pairing on the TV; verify an error rather than a connected state. Disconnect Wi-Fi and verify errors are actionable. Revoke the app in Samsung settings; forget and re-pair.
 11. Optional: save the MAC address and enable the TV's network standby/power-on-with-mobile option. Power off, select **My TVs → menu → Wake TV**, wait and reconnect. A wake packet is not proof that the TV woke.

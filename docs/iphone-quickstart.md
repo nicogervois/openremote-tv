@@ -28,7 +28,7 @@ Alternatively, after configuring signing, use `flutter devices` to find the phon
 2. Find the TV's IPv4 address in its network settings. Samsung menu wording varies by model.
 3. Open OpenRemote TV → **My TVs → Add TV by IP address**. Select Samsung, enter a nickname and that IP. The optional MAC field can stay blank.
 4. Allow the iPhone's Local Network permission if requested. Confirm the TV identity shown in the app, then approve the connection request on the TV.
-5. Test Home, directional buttons, OK, Back, volume and mute first. Then try an on-screen search field with Keyboard. App listing and text entry vary by firmware and TV app.
+5. Test Home, directional buttons, OK, Back, volume and mute first. Then try an on-screen search field with **More → Keyboard**. App listing and text entry vary by firmware and TV app.
 6. Disconnect and reconnect to test token reuse. Use **Forget pairing** if the TV's identity changes or its permission has been revoked, then add it again.
 
 If connection fails, record the Samsung model and firmware plus the app's error message. Do not post tokens, IP/MAC addresses or Wi-Fi details in public issues. The full checklist is [samsung-testing.md](samsung-testing.md).

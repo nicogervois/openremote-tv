@@ -11,7 +11,7 @@ Implementation status is separate from hardware verification. All physical-devic
 | Roku | Out of scope | — | — | — | Explicit product decision. |
 | Fire TV / Apple TV / other platforms | Not implemented | — | — | — | Separate protocols and validation required. |
 
-Power on uses Wake-on-LAN if the TV supports network standby and a MAC address is saved. Power button sends a Samsung power key or LG/Sony power-off command to an already connected TV. Neither can wake a TV whose network interface is off. Swipes emulate directional presses, not a native mouse cursor. Channel commands only apply to compatible tuner contexts. External audio receivers can change volume behavior.
+Power on uses Wake-on-LAN if the TV supports network standby and a MAC address is saved. Power button sends a Samsung power key or LG/Sony power-off command to an already connected TV. Neither can wake a TV whose network interface is off. The unmarked navigation ring sends directional presses from its top, bottom and sides; its center selects. Rocker ends send incremental commands, and the middle grips mute volume or open channel numbers. The playback button opens explicit Play/Pause actions without guessing the TV playback state. Channel commands only apply to compatible tuner contexts. External audio receivers can change volume behavior.
 
 Discovery supports private IPv4 SSDP responses. It is bounded (4-second search, at most 64 description requests, description size cap), deduplicated and ignores devices not identified as compatible TVs. Manual IP entry is the fallback for missing SSDP advertisements and iOS entitlement restrictions. It does not scan every IP address on the subnet.
 
